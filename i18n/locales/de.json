@@ -1,0 +1,26 @@
+{
+  "index": {
+    "seo": {
+      "title": "ClevrSend Web",
+      "description": "Teile Dateien zwischen deinem Browser und anderen Geräten mit ClevrSend."
+    },
+    "connecting": "Verbinde...",
+    "webCryptoNotSupported": "Dein Browser unterstützt ClevrSend nicht: Web Crypto API wird benötigt.",
+    "empty": {
+      "title": "Öffne ClevrSend auf einem anderen Gerät.",
+      "deviceHint": "Öffne diese Seite in einem anderen Browser-Tab oder kompatiblen Gerät.",
+      "lanHint": "Nur Geräte im selben Netzwerk werden angezeigt."
+    },
+    "you": "Du bist:",
+    "pin": {
+      "label": "PIN: ",
+      "none": "kein"
+    },
+    "enterAlias": "Name eingeben",
+    "enterPin": "PIN eingeben",
+    "progress": {
+      "titleSending": "Sende Dateien...",
+      "titleReceiving": "Empfange Dateien..."
+    }
+  }
+}
