@@ -65,6 +65,13 @@
           <span>LokalSend</span>
         </button>
         <button
+          @click="activeMode = 'team'"
+          :class="['mode-tab', { 'mode-tab-active': activeMode === 'team' }]"
+        >
+          <Icon name="mdi:account-group" size="20" />
+          <span>TeamSync</span>
+        </button>
+        <button
           @click="activeMode = 'qr'"
           :class="['mode-tab', { 'mode-tab-active': activeMode === 'qr' }]"
         >
@@ -375,126 +382,183 @@
       </div>
     </div>
 
-    <!-- QR-Connect Mode -->
-    <div v-if="activeMode === 'qr'" class="flex-1 px-4 py-8 relative z-10 overflow-y-auto">
+    <!-- TeamSync Mode -->
+    <div v-if="activeMode === 'team'">
+      <!-- Room Code Header (sticky) -->
+      <div v-if="myDevicesRoom" class="team-room-header">
+        <div class="team-room-code-section">
+          <Icon name="mdi:account-group" size="20" />
+          <span class="room-code-label">Raum-Code:</span>
+          <span class="room-code-value">{{ myDevicesRoom.code }}</span>
+          <button @click="copyRoomCode" class="code-copy-btn" title="Code kopieren">
+            <Icon name="mdi:content-copy" size="18" />
+          </button>
+        </div>
+        <button @click="leaveRoom" class="team-leave-btn">
+          <Icon name="mdi:logout" size="18" />
+          <span>Verlassen</span>
+        </button>
+      </div>
+
+      <!-- No Room Yet: Empty State with Bento -->
+      <div v-if="!myDevicesRoom" class="flex-1 px-4 py-8 relative z-10 overflow-y-auto">
+        <MagicBento :items="teamEmptyStateItems">
+          <template v-slot:card-0>
+            <!-- Create Room Card -->
+            <div class="peer-card-content team-empty-card team-create-card" @click="createRoom">
+              <Icon name="mdi:plus-circle" size="64" class="team-empty-icon" />
+              <h3 class="team-empty-title">Neuen Raum erstellen</h3>
+              <p class="team-empty-hint">Erstelle einen Raum, um all deine Geräte zu verbinden</p>
+            </div>
+          </template>
+          <template v-slot:card-1>
+            <!-- Join Room Card -->
+            <div class="peer-card-content team-empty-card team-join-card" @click="showJoinRoomDialog = true">
+              <Icon name="mdi:login" size="64" class="team-empty-icon" />
+              <h3 class="team-empty-title">Raum beitreten</h3>
+              <p class="team-empty-hint">Tritt einem bestehenden Raum mit Code bei</p>
+            </div>
+          </template>
+        </MagicBento>
+      </div>
+
+      <!-- Active Room: Devices with Bento Layout -->
+      <div v-else class="flex-1 px-4 py-8 relative z-10 overflow-y-auto">
+        <MagicBento :items="teamRoomItems">
+          <template v-for="(item, index) in teamRoomItems" :key="index" v-slot:[`card-${index}`]="{ item: slotItem }">
+            <!-- Own Device Card -->
+            <div
+              v-if="index === 0 && store.client"
+              class="peer-card-content own-card"
+            >
+              <div class="card-type-badge own-card-badge">
+                <Icon name="mdi:send" size="14" />
+                <span>Dein Gerät</span>
+              </div>
+
+              <div class="own-card-user-info">
+                <div class="own-card-info-item">
+                  <span class="own-card-label">Gerätename:</span>
+                  <span class="own-card-value cursor-pointer" @click="updateAlias">
+                    {{ store.client.alias }}
+                  </span>
+                </div>
+
+                <div class="own-card-divider"></div>
+
+                <div class="own-card-info-item">
+                  <span class="own-card-label">Status:</span>
+                  <span class="own-card-value">
+                    <Icon name="mdi:circle" size="12" class="status-online" />
+                    Online
+                  </span>
+                </div>
+              </div>
+
+              <p class="own-card-device text-sm opacity-60 mt-4">
+                {{ store.client.deviceModel }}
+              </p>
+            </div>
+
+            <!-- Room Device Cards (Online) -->
+            <div
+              v-else-if="index > 0 && roomDevices.online[index - 1]"
+              class="peer-card-content peer-card-with-spotlight team-device-card"
+              :class="{ 'drag-over': draggedTeamDevice === roomDevices.online[index - 1]?.id }"
+              @click="selectTeamDevice(roomDevices.online[index - 1].id)"
+              @dragenter="handleTeamDragEnter(roomDevices.online[index - 1].id)"
+              @dragover="handleTeamDragOver($event, roomDevices.online[index - 1].id)"
+              @dragleave="handleTeamDragLeave(roomDevices.online[index - 1].id)"
+              @drop="handleTeamDrop($event, roomDevices.online[index - 1].id)"
+              @mousemove="handlePeerCardMouseMove($event, index)"
+              :ref="el => setPeerCardRef(el, index)"
+            >
+              <!-- Spotlight effect overlay -->
+              <div
+                class="peer-spotlight-overlay"
+                :style="getPeerSpotlightStyle(index)"
+              ></div>
+              <div class="card-type-badge peer-card-badge">
+                <Icon name="mdi:circle" size="10" class="status-online" />
+                <span>Online</span>
+              </div>
+
+              <div class="team-device-info">
+                <Icon :name="getDeviceIcon(roomDevices.online[index - 1].type)" size="48" class="team-device-icon" />
+                <h3 class="team-device-name">{{ roomDevices.online[index - 1].name }}</h3>
+                <p class="team-device-status">{{ formatLastSeen(roomDevices.online[index - 1].lastSeen) }}</p>
+              </div>
+
+              <div class="peer-upload-section">
+                <button class="upload-button">
+                  <Icon name="mdi:plus" size="32" />
+                </button>
+                <p class="upload-text">Klicken, um Dateien zu senden</p>
+              </div>
+
+              <div v-if="draggedTeamDevice === roomDevices.online[index - 1]?.id" class="drop-indicator">
+                <Icon name="mdi:cloud-upload" size="48" />
+                <p class="mt-2 text-lg font-semibold">Dateien hier ablegen</p>
+              </div>
+            </div>
+
+            <!-- Room Device Cards (Offline) -->
+            <div
+              v-else-if="index > roomDevices.online.length && roomDevices.offline[index - roomDevices.online.length - 1]"
+              class="peer-card-content team-device-card team-device-offline"
+            >
+              <div class="card-type-badge peer-card-badge-offline">
+                <Icon name="mdi:circle-outline" size="10" class="status-offline" />
+                <span>Offline</span>
+              </div>
+
+              <div class="team-device-info">
+                <Icon :name="getDeviceIcon(roomDevices.offline[index - roomDevices.online.length - 1].type)" size="48" class="team-device-icon opacity-50" />
+                <h3 class="team-device-name opacity-60">{{ roomDevices.offline[index - roomDevices.online.length - 1].name }}</h3>
+                <p class="team-device-status">{{ formatLastSeen(roomDevices.offline[index - roomDevices.online.length - 1].lastSeen) }}</p>
+              </div>
+
+              <p class="offline-hint">Gerät ist nicht verfügbar</p>
+            </div>
+          </template>
+        </MagicBento>
+      </div>
+
+      <!-- Join Room Dialog -->
+      <div v-if="showJoinRoomDialog" class="room-dialog-overlay" @click="showJoinRoomDialog = false">
+        <div class="room-dialog" @click.stop>
+          <h3 class="dialog-title">Raum beitreten</h3>
+          <p class="dialog-text">Gib den 6-stelligen Raum-Code ein:</p>
+          <input
+            v-model="joinRoomCode"
+            type="text"
+            class="room-code-input"
+            placeholder="ABC-123"
+            maxlength="7"
+            @keyup.enter="joinRoom"
+          />
+          <div class="dialog-actions">
+            <button @click="joinRoom" class="dialog-btn dialog-btn-primary">
+              <Icon name="mdi:login" size="20" />
+              <span>Beitreten</span>
+            </button>
+            <button @click="showJoinRoomDialog = false" class="dialog-btn dialog-btn-secondary">
+              <Icon name="mdi:close" size="20" />
+              <span>Abbrechen</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- InternetSend Mode (QR Connect) -->
+    <div v-else-if="activeMode === 'qr'" class="flex-1 px-4 py-8 relative z-10 overflow-y-auto">
       <div class="qr-connect-container">
         <div class="qr-connect-header">
-          <h2 class="text-2xl font-bold">🔗 Schnellverbindung via QR-Code</h2>
+          <h2 class="text-2xl font-bold">📱 InternetSend - QR-Connect</h2>
           <p class="qr-connect-description">
-            Verbinde zwei Geräte direkt über QR-Code - funktioniert überall über Internet!
+            Verbinde zwei Geräte direkt über QR-Code - funktioniert auch über verschiedene Netzwerke!
           </p>
-        </div>
-
-        <!-- My Devices Room -->
-        <div class="my-devices-room">
-          <div class="room-header">
-            <h3 class="room-title">
-              <Icon name="mdi:devices" size="24" />
-              Meine Geräte
-            </h3>
-          </div>
-
-          <!-- No Room Yet -->
-          <div v-if="!myDevicesRoom" class="room-empty">
-            <Icon name="mdi:home-group" size="48" class="empty-icon" />
-            <p class="empty-text">Noch kein Raum erstellt</p>
-            <p class="empty-hint">Erstelle einen Raum, um all deine Geräte zu verbinden</p>
-
-            <div class="room-actions">
-              <button @click="createRoom" class="room-btn room-btn-primary">
-                <Icon name="mdi:plus-circle" size="20" />
-                <span>Neuen Raum erstellen</span>
-              </button>
-              <button @click="showJoinRoomDialog = true" class="room-btn room-btn-secondary">
-                <Icon name="mdi:login" size="20" />
-                <span>Raum beitreten</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Active Room -->
-          <div v-else class="room-active">
-            <div class="room-code-section">
-              <div class="room-code-label">Raum-Code:</div>
-              <div class="room-code">
-                <span class="code-text">{{ myDevicesRoom.code }}</span>
-                <button @click="copyRoomCode" class="code-copy-btn" title="Code kopieren">
-                  <Icon name="mdi:content-copy" size="18" />
-                </button>
-              </div>
-            </div>
-
-            <!-- Online Devices -->
-            <div v-if="roomDevices.online.length > 0" class="room-devices-section">
-              <div class="devices-header">
-                <Icon name="mdi:circle" size="12" class="status-online" />
-                <span>Online ({{ roomDevices.online.length }})</span>
-              </div>
-              <div class="devices-list">
-                <div v-for="device in roomDevices.online" :key="device.id" class="device-card">
-                  <Icon :name="getDeviceIcon(device.type)" size="28" class="device-icon" />
-                  <div class="device-info">
-                    <span class="device-name">{{ device.name }}</span>
-                    <span class="device-status">{{ formatLastSeen(device.lastSeen) }}</span>
-                  </div>
-                  <button @click="sendToDevice(device)" class="device-send-btn">
-                    <Icon name="mdi:send" size="20" />
-                    <span>Senden</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Offline Devices -->
-            <div v-if="roomDevices.offline.length > 0" class="room-devices-section">
-              <div class="devices-header">
-                <Icon name="mdi:circle-outline" size="12" class="status-offline" />
-                <span>Offline ({{ roomDevices.offline.length }})</span>
-              </div>
-              <div class="devices-list">
-                <div v-for="device in roomDevices.offline" :key="device.id" class="device-card device-offline">
-                  <Icon :name="getDeviceIcon(device.type)" size="28" class="device-icon" />
-                  <div class="device-info">
-                    <span class="device-name">{{ device.name }}</span>
-                    <span class="device-status">{{ formatLastSeen(device.lastSeen) }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="room-footer-actions">
-              <button @click="leaveRoom" class="room-leave-btn">
-                <Icon name="mdi:logout" size="20" />
-                <span>Raum verlassen</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Join Room Dialog -->
-        <div v-if="showJoinRoomDialog" class="room-dialog-overlay" @click="showJoinRoomDialog = false">
-          <div class="room-dialog" @click.stop>
-            <h3 class="dialog-title">Raum beitreten</h3>
-            <p class="dialog-text">Gib den 6-stelligen Raum-Code ein:</p>
-            <input
-              v-model="joinRoomCode"
-              type="text"
-              class="room-code-input"
-              placeholder="ABC-123"
-              maxlength="7"
-              @keyup.enter="joinRoom"
-            />
-            <div class="dialog-actions">
-              <button @click="joinRoom" class="dialog-btn dialog-btn-primary">
-                <Icon name="mdi:login" size="20" />
-                <span>Beitreten</span>
-              </button>
-              <button @click="showJoinRoomDialog = false" class="dialog-btn dialog-btn-secondary">
-                <Icon name="mdi:close" size="20" />
-                <span>Abbrechen</span>
-              </button>
-            </div>
-          </div>
         </div>
 
         <!-- Connection Status -->
@@ -934,7 +998,7 @@ const showQrCode = ref(false);
 const qrCodeCanvas = ref<HTMLCanvasElement | null>(null);
 
 // Mode tabs state
-const activeMode = ref<'auto' | 'qr'>('auto');
+const activeMode = ref<'auto' | 'team' | 'qr'>('auto');
 
 // App version (dynamically imported from package.json)
 const appVersion = ref('...');
@@ -1658,6 +1722,69 @@ const handleDrop = async (event: DragEvent, peerId: string) => {
   });
 };
 
+// TeamSync drag and drop handlers
+const draggedTeamDevice = ref<string | null>(null);
+const teamDragCounter = ref<Map<string, number>>(new Map());
+
+const handleTeamDragEnter = (deviceId: string) => {
+  const count = (teamDragCounter.value.get(deviceId) || 0) + 1;
+  teamDragCounter.value.set(deviceId, count);
+  draggedTeamDevice.value = deviceId;
+};
+
+const handleTeamDragOver = (event: DragEvent, deviceId: string) => {
+  event.preventDefault();
+  draggedTeamDevice.value = deviceId;
+};
+
+const handleTeamDragLeave = (deviceId: string) => {
+  const count = (teamDragCounter.value.get(deviceId) || 1) - 1;
+  teamDragCounter.value.set(deviceId, count);
+
+  if (count === 0) {
+    draggedTeamDevice.value = null;
+  }
+};
+
+const handleTeamDrop = async (event: DragEvent, deviceId: string) => {
+  event.preventDefault();
+  draggedTeamDevice.value = null;
+  teamDragCounter.value.set(deviceId, 0);
+
+  const files = event.dataTransfer?.files;
+  if (!files || files.length === 0) return;
+
+  const fileArray = Array.from(files);
+
+  // Find the device and get its peerId
+  const device = roomDevices.value.online.find(d => d.id === deviceId);
+  if (!device || !device.peerId) {
+    showNotification('Gerät nicht verfügbar', 'error');
+    return;
+  }
+
+  if (!store.signaling) return;
+
+  await startSendSession({
+    files: fileArray,
+    targetId: device.peerId,
+    onPin: async () => {
+      return await showCustomPinDialog(t("index.enterPin"));
+    },
+  });
+};
+
+const selectTeamDevice = async (deviceId: string) => {
+  // Find the device and get its peerId
+  const device = roomDevices.value.online.find(d => d.id === deviceId);
+  if (!device || !device.peerId) {
+    showNotification('Gerät nicht verfügbar', 'error');
+    return;
+  }
+
+  await openDialog(device.peerId);
+};
+
 // Generate all bento items (own card + peer cards)
 const allItems = computed(() => {
   const items = [];
@@ -1734,6 +1861,79 @@ const emptyStateItems = computed(() => {
   items.push({
     title: '',
     size: 'medium' as 'medium',
+  });
+
+  return items;
+});
+
+// TeamSync Empty State Items (Create + Join Cards)
+const teamEmptyStateItems = computed(() => {
+  const items: any[] = [];
+
+  // Create Room Card
+  items.push({
+    title: 'Neuen Raum erstellen',
+    size: 'medium' as 'medium',
+    glow: true,
+    particles: true,
+  });
+
+  // Join Room Card
+  items.push({
+    title: 'Raum beitreten',
+    size: 'medium' as 'medium',
+    glow: true,
+    particles: true,
+  });
+
+  return items;
+});
+
+// TeamSync Room Items (Own Device + Room Devices)
+const teamRoomItems = computed(() => {
+  const items: any[] = [];
+
+  // Own Device Card
+  if (store.client) {
+    items.push({
+      title: store.client.alias,
+      titleLabel: 'Dein Gerät:',
+      description: store.client.deviceModel,
+      size: 'medium' as 'medium',
+      glow: true,
+      particles: true,
+      isOwnCard: true,
+    });
+  }
+
+  // Online Room Devices
+  roomDevices.value.online.forEach((device) => {
+    items.push({
+      title: device.name,
+      titleLabel: 'Online:',
+      description: device.type,
+      size: 'medium' as 'medium',
+      glow: true,
+      particles: true,
+      isOwnCard: false,
+      customBorderColor: peerCardBorderColor.value,
+      customGlowColor: peerCardGlowColor.value,
+      customGradient1: peerCardGradientColor1.value,
+      customGradient2: peerCardGradientColor2.value,
+    });
+  });
+
+  // Offline Room Devices
+  roomDevices.value.offline.forEach((device) => {
+    items.push({
+      title: device.name,
+      titleLabel: 'Offline:',
+      description: device.type,
+      size: 'medium' as 'medium',
+      glow: false,
+      particles: false,
+      isOwnCard: false,
+    });
   });
 
   return items;
