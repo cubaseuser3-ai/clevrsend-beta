@@ -1,0 +1,122 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - img "ClevrSend Logo" [ref=e8]
+        - generic [ref=e9]:
+          - generic [ref=e10]:
+            - generic [ref=e11]: C
+            - generic [ref=e12]: l
+            - generic [ref=e13]: e
+            - generic [ref=e14]: v
+            - generic [ref=e15]: r
+            - generic [ref=e16]: S
+            - generic [ref=e17]: e
+            - generic [ref=e18]: "n"
+            - generic [ref=e19]: d
+          - generic [ref=e20]:
+            - generic [ref=e21]: p
+            - generic [ref=e22]: o
+            - generic [ref=e23]: w
+            - generic [ref=e24]: e
+            - generic [ref=e25]: r
+            - generic [ref=e26]: e
+            - generic [ref=e27]: d
+            - generic [ref=e29]: b
+            - generic [ref=e30]: "y"
+            - generic [ref=e32]: M
+            - generic [ref=e33]: "y"
+            - generic [ref=e34]: T
+            - generic [ref=e35]: e
+            - generic [ref=e36]: c
+            - generic [ref=e37]: h
+      - generic [ref=e38]:
+        - generic [ref=e39]: Die AirDrop-Alternative für alle Geräte
+        - button "Link teilen" [ref=e40] [cursor=pointer]
+        - button "Animation Einstellungen" [ref=e42] [cursor=pointer]
+    - generic [ref=e45]:
+      - button "LokalSend" [ref=e46] [cursor=pointer]:
+        - generic [ref=e48]: LokalSend
+      - button "InternetSend" [ref=e49] [cursor=pointer]:
+        - generic [ref=e51]: InternetSend
+    - generic [ref=e54]:
+      - generic [ref=e56]:
+        - heading "Dein Übertragungsname:Gold" [level=3] [ref=e58]
+        - paragraph [ref=e59]: macOS • Chrome
+        - generic [ref=e60]:
+          - generic:
+            - generic: Sender
+          - generic [ref=e61]:
+            - generic [ref=e62]:
+              - generic [ref=e63]: "Dein Übertragungsname:"
+              - generic [ref=e64] [cursor=pointer]: Gold
+            - generic [ref=e66]:
+              - generic [ref=e67]: "PIN:"
+              - generic [ref=e68] [cursor=pointer]: kein
+            - button "PIN ändern" [ref=e69] [cursor=pointer]
+          - paragraph [ref=e71]: macOS • Chrome
+      - generic [ref=e73]:
+        - generic [ref=e74]:
+          - heading "Empfänger:Titan" [level=3] [ref=e75]
+          - generic [ref=e76]: Neuster Empfänger Neuster Empfänger
+        - paragraph [ref=e77]: macOS • Chrome
+        - paragraph [ref=e78]: "Online seit: 12:55:12"
+        - generic [ref=e79] [cursor=pointer]:
+          - generic:
+            - generic: Empfänger
+          - generic [ref=e80]:
+            - button [ref=e81]
+            - paragraph [ref=e83]: Klicken, um Ihre Dateien hinzuzufügen
+      - generic [ref=e85]:
+        - heading "Empfänger:Stahl" [level=3] [ref=e87]
+        - paragraph [ref=e88]: macOS • Safari
+        - paragraph [ref=e89]: "Online seit: 12:55:12"
+        - generic [ref=e90] [cursor=pointer]:
+          - generic:
+            - generic: Empfänger
+          - generic [ref=e91]:
+            - button [ref=e92]
+            - paragraph [ref=e94]: Klicken, um Ihre Dateien hinzuzufügen
+    - generic [ref=e95]:
+      - generic [ref=e99]:
+        - generic [ref=e100]:
+          - generic [ref=e101]: "Frontend:"
+          - generic [ref=e102]: v1.6.0-beta.1
+        - generic [ref=e103]: Ready seit 24.10.2025, 12:55:12
+      - generic [ref=e107]:
+        - generic [ref=e108]:
+          - generic [ref=e109]: "Backend:"
+          - generic [ref=e110]: v1.4.0-beta.1
+        - generic [ref=e111]: Ready seit 24.10.2025, 12:38:26
+      - generic [ref=e114]: Version-Konflikt erkannt!
+    - contentinfo [ref=e115]:
+      - generic [ref=e116]:
+        - link "Impressum" [ref=e117] [cursor=pointer]:
+          - /url: /impressum
+        - generic [ref=e118]: "|"
+        - link "Datenschutz" [ref=e119] [cursor=pointer]:
+          - /url: /datenschutz
+        - generic [ref=e120]: "|"
+        - link "AGB" [ref=e121] [cursor=pointer]:
+          - /url: /agb
+      - generic [ref=e122]: © 2025 MyTech Support GmbH
+  - generic:
+    - img
+  - generic:
+    - generic:
+      - generic:
+        - button "Go to parent" [disabled]
+        - button "Open in editor"
+        - button "Close"
+  - generic [ref=e123]:
+    - button "Toggle Nuxt DevTools" [ref=e124] [cursor=pointer]:
+      - img [ref=e125]
+    - generic "Page load time" [ref=e128]:
+      - generic [ref=e129]: "93"
+      - generic [ref=e130]: ms
+    - button "Toggle Component Inspector" [ref=e132] [cursor=pointer]:
+      - img [ref=e133]
+```

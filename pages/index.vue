@@ -385,85 +385,114 @@
           </p>
         </div>
 
-        <!-- Save Connection Prompt -->
-        <div v-if="showSaveConnectionPrompt" class="save-connection-prompt">
-          <div class="save-prompt-card">
-            <Icon name="mdi:bookmark-plus-outline" size="40" class="save-prompt-icon" />
-            <h3 class="save-prompt-title">Verbindung speichern?</h3>
-            <p class="save-prompt-text">
-              Speichere diese Verbindung, um beim nächsten Mal sofort zu verbinden ohne QR-Code!
-            </p>
-            <div class="save-prompt-actions">
-              <button @click="saveCurrentQRConnection" class="save-prompt-btn save-prompt-btn-primary">
-                <Icon name="mdi:content-save" size="20" />
-                <span>Speichern</span>
+        <!-- My Devices Room -->
+        <div class="my-devices-room">
+          <div class="room-header">
+            <h3 class="room-title">
+              <Icon name="mdi:devices" size="24" />
+              Meine Geräte
+            </h3>
+          </div>
+
+          <!-- No Room Yet -->
+          <div v-if="!myDevicesRoom" class="room-empty">
+            <Icon name="mdi:home-group" size="48" class="empty-icon" />
+            <p class="empty-text">Noch kein Raum erstellt</p>
+            <p class="empty-hint">Erstelle einen Raum, um all deine Geräte zu verbinden</p>
+
+            <div class="room-actions">
+              <button @click="createRoom" class="room-btn room-btn-primary">
+                <Icon name="mdi:plus-circle" size="20" />
+                <span>Neuen Raum erstellen</span>
               </button>
-              <button @click="dismissSavePrompt" class="save-prompt-btn save-prompt-btn-secondary">
-                <Icon name="mdi:close" size="20" />
-                <span>Nicht jetzt</span>
+              <button @click="showJoinRoomDialog = true" class="room-btn room-btn-secondary">
+                <Icon name="mdi:login" size="20" />
+                <span>Raum beitreten</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Active Room -->
+          <div v-else class="room-active">
+            <div class="room-code-section">
+              <div class="room-code-label">Raum-Code:</div>
+              <div class="room-code">
+                <span class="code-text">{{ myDevicesRoom.code }}</span>
+                <button @click="copyRoomCode" class="code-copy-btn" title="Code kopieren">
+                  <Icon name="mdi:content-copy" size="18" />
+                </button>
+              </div>
+            </div>
+
+            <!-- Online Devices -->
+            <div v-if="roomDevices.online.length > 0" class="room-devices-section">
+              <div class="devices-header">
+                <Icon name="mdi:circle" size="12" class="status-online" />
+                <span>Online ({{ roomDevices.online.length }})</span>
+              </div>
+              <div class="devices-list">
+                <div v-for="device in roomDevices.online" :key="device.id" class="device-card">
+                  <Icon :name="getDeviceIcon(device.type)" size="28" class="device-icon" />
+                  <div class="device-info">
+                    <span class="device-name">{{ device.name }}</span>
+                    <span class="device-status">{{ formatLastSeen(device.lastSeen) }}</span>
+                  </div>
+                  <button @click="sendToDevice(device)" class="device-send-btn">
+                    <Icon name="mdi:send" size="20" />
+                    <span>Senden</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Offline Devices -->
+            <div v-if="roomDevices.offline.length > 0" class="room-devices-section">
+              <div class="devices-header">
+                <Icon name="mdi:circle-outline" size="12" class="status-offline" />
+                <span>Offline ({{ roomDevices.offline.length }})</span>
+              </div>
+              <div class="devices-list">
+                <div v-for="device in roomDevices.offline" :key="device.id" class="device-card device-offline">
+                  <Icon :name="getDeviceIcon(device.type)" size="28" class="device-icon" />
+                  <div class="device-info">
+                    <span class="device-name">{{ device.name }}</span>
+                    <span class="device-status">{{ formatLastSeen(device.lastSeen) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="room-footer-actions">
+              <button @click="leaveRoom" class="room-leave-btn">
+                <Icon name="mdi:logout" size="20" />
+                <span>Raum verlassen</span>
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Saved Connections -->
-        <div class="saved-connections-section">
-          <div class="saved-connections-header">
-            <h3 class="saved-connections-title">
-              <Icon name="mdi:bookmark-multiple" size="24" />
-              Gespeicherte Verbindungen
-              <span v-if="savedQRConnections.length > 0" class="saved-count">({{ savedQRConnections.length }})</span>
-            </h3>
-            <div class="saved-connections-actions">
-              <button @click="exportConnections" class="saved-action-btn" title="Backup erstellen">
-                <Icon name="mdi:download" size="20" />
-                <span class="saved-action-text">Backup</span>
+        <!-- Join Room Dialog -->
+        <div v-if="showJoinRoomDialog" class="room-dialog-overlay" @click="showJoinRoomDialog = false">
+          <div class="room-dialog" @click.stop>
+            <h3 class="dialog-title">Raum beitreten</h3>
+            <p class="dialog-text">Gib den 6-stelligen Raum-Code ein:</p>
+            <input
+              v-model="joinRoomCode"
+              type="text"
+              class="room-code-input"
+              placeholder="ABC-123"
+              maxlength="7"
+              @keyup.enter="joinRoom"
+            />
+            <div class="dialog-actions">
+              <button @click="joinRoom" class="dialog-btn dialog-btn-primary">
+                <Icon name="mdi:login" size="20" />
+                <span>Beitreten</span>
               </button>
-              <button @click="importConnections" class="saved-action-btn" title="Backup wiederherstellen">
-                <Icon name="mdi:upload" size="20" />
-                <span class="saved-action-text">Importieren</span>
+              <button @click="showJoinRoomDialog = false" class="dialog-btn dialog-btn-secondary">
+                <Icon name="mdi:close" size="20" />
+                <span>Abbrechen</span>
               </button>
-            </div>
-          </div>
-
-          <!-- Empty State -->
-          <div v-if="savedQRConnections.length === 0" class="saved-connections-empty">
-            <Icon name="mdi:bookmark-outline" size="48" class="empty-icon" />
-            <p class="empty-text">Keine gespeicherten Verbindungen</p>
-            <p class="empty-hint">Verbinde dich via QR-Code, um Geräte zu speichern</p>
-          </div>
-
-          <!-- Connections List -->
-          <div v-else class="saved-connections-list">
-            <div
-              v-for="conn in savedQRConnections"
-              :key="conn.id"
-              class="saved-connection-card"
-            >
-              <div class="saved-connection-info">
-                <Icon :name="getDeviceIcon(conn.deviceType)" size="28" class="saved-device-icon" />
-                <div class="saved-connection-details">
-                  <span class="saved-device-name">{{ conn.deviceName }}</span>
-                  <span class="saved-device-time">{{ formatLastSeen(conn.lastConnected) }}</span>
-                </div>
-              </div>
-              <div class="saved-connection-actions">
-                <button
-                  @click="quickConnectToSaved(conn)"
-                  class="saved-connect-btn"
-                  title="Schnellverbindung"
-                >
-                  <Icon name="mdi:flash" size="20" />
-                  <span>Verbinden</span>
-                </button>
-                <button
-                  @click="removeSavedConnection(conn.id)"
-                  class="saved-remove-btn"
-                  title="Entfernen"
-                >
-                  <Icon name="mdi:delete-outline" size="20" />
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -972,157 +1001,227 @@ const releaseWakeLock = async () => {
   }
 };
 
-// ===== SAVED QR CONNECTIONS (LocalStorage + Export/Import) =====
-interface SavedQRConnection {
+// ===== MY DEVICES ROOM SYSTEM =====
+interface RoomDevice {
   id: string;
-  deviceName: string;
-  deviceType: string;
-  lastConnected: number;
-  qrData: string;  // QR connection data for reconnection
+  name: string;
+  type: string;
+  lastSeen: number;
+  peerId?: string;
 }
 
-const savedQRConnections = ref<SavedQRConnection[]>([]);
-const showSaveConnectionPrompt = ref(false);
-const currentQRConnectionData = ref<{ peerAlias: string; peerType: string; qrData: string } | null>(null);
+interface MyDevicesRoom {
+  code: string;
+  createdAt: number;
+  devices: RoomDevice[];
+}
 
-// Load saved connections from LocalStorage
-const loadSavedConnections = (): SavedQRConnection[] => {
+const myDevicesRoom = ref<MyDevicesRoom | null>(null);
+const showJoinRoomDialog = ref(false);
+const joinRoomCode = ref('');
+const roomWebSocket = ref<WebSocket | null>(null);
+
+const roomDevices = computed(() => {
+  if (!myDevicesRoom.value) {
+    return { online: [], offline: [] };
+  }
+
+  const now = Date.now();
+  const ONLINE_THRESHOLD = 60000; // 1 minute
+
+  const online = myDevicesRoom.value.devices.filter(d =>
+    now - d.lastSeen < ONLINE_THRESHOLD
+  );
+  const offline = myDevicesRoom.value.devices.filter(d =>
+    now - d.lastSeen >= ONLINE_THRESHOLD
+  );
+
+  return { online, offline };
+});
+
+// Generate room code (6 chars: ABC-123)
+const generateRoomCode = (): string => {
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const numbers = '0123456789';
+
+  const letterPart = Array.from({ length: 3 }, () =>
+    letters[Math.floor(Math.random() * letters.length)]
+  ).join('');
+
+  const numberPart = Array.from({ length: 3 }, () =>
+    numbers[Math.floor(Math.random() * numbers.length)]
+  ).join('');
+
+  return `${letterPart}-${numberPart}`;
+};
+
+// Load room from LocalStorage
+const loadRoom = (): MyDevicesRoom | null => {
   try {
-    const saved = localStorage.getItem('clevrsend_saved_qr_connections');
-    return saved ? JSON.parse(saved) : [];
+    const saved = localStorage.getItem('clevrsend_my_devices_room');
+    return saved ? JSON.parse(saved) : null;
   } catch (err) {
-    console.error('Failed to load saved connections:', err);
-    return [];
+    console.error('Failed to load room:', err);
+    return null;
   }
 };
 
-// Save connections to LocalStorage
-const saveSavedConnections = (connections: SavedQRConnection[]) => {
+// Save room to LocalStorage
+const saveRoom = (room: MyDevicesRoom) => {
   try {
-    localStorage.setItem('clevrsend_saved_qr_connections', JSON.stringify(connections));
-    console.log('✅ Saved connections to LocalStorage');
+    localStorage.setItem('clevrsend_my_devices_room', JSON.stringify(room));
+    console.log('✅ Room saved to LocalStorage');
   } catch (err) {
-    console.error('Failed to save connections:', err);
-    showNotification('❌ Fehler beim Speichern', 'error');
+    console.error('Failed to save room:', err);
   }
 };
 
-// Save current QR connection
-const saveCurrentQRConnection = () => {
-  if (!currentQRConnectionData.value) return;
+// Create new room
+const createRoom = async () => {
+  const code = generateRoomCode();
 
-  const newConnection: SavedQRConnection = {
-    id: crypto.randomUUID(),
-    deviceName: currentQRConnectionData.value.peerAlias,
-    deviceType: currentQRConnectionData.value.peerType || 'web',
-    lastConnected: Date.now(),
-    qrData: currentQRConnectionData.value.qrData
+  const newRoom: MyDevicesRoom = {
+    code,
+    createdAt: Date.now(),
+    devices: []
   };
 
-  const connections = loadSavedConnections();
+  myDevicesRoom.value = newRoom;
+  saveRoom(newRoom);
 
-  // Check if already saved (avoid duplicates)
-  const exists = connections.some(c => c.qrData === newConnection.qrData);
-  if (exists) {
-    showNotification('ℹ️ Verbindung bereits gespeichert', 'info');
-    showSaveConnectionPrompt.value = false;
+  showNotification(`✅ Raum erstellt: ${code}`, 'success');
+  logInteraction('CREATE_ROOM', `Created room ${code}`);
+
+  // Connect to signaling server for this room
+  await connectToRoom(code);
+};
+
+// Join existing room
+const joinRoom = async () => {
+  if (!joinRoomCode.value) {
+    showNotification('⚠️ Bitte Raum-Code eingeben', 'error');
     return;
   }
 
-  connections.push(newConnection);
-  saveSavedConnections(connections);
+  const code = joinRoomCode.value.toUpperCase().trim();
 
-  savedQRConnections.value = connections;
-  showSaveConnectionPrompt.value = false;
+  const newRoom: MyDevicesRoom = {
+    code,
+    createdAt: Date.now(),
+    devices: []
+  };
 
-  showNotification('✅ Verbindung gespeichert!', 'success');
-  logInteraction('SAVE_CONNECTION', `Saved connection to ${newConnection.deviceName}`);
+  myDevicesRoom.value = newRoom;
+  saveRoom(newRoom);
+
+  showJoinRoomDialog.value = false;
+  joinRoomCode.value = '';
+
+  showNotification(`✅ Raum beigetreten: ${code}`, 'success');
+  logInteraction('JOIN_ROOM', `Joined room ${code}`);
+
+  // Connect to signaling server for this room
+  await connectToRoom(code);
 };
 
-// Dismiss save prompt
-const dismissSavePrompt = () => {
-  showSaveConnectionPrompt.value = false;
-  currentQRConnectionData.value = null;
-};
+// Connect to room via WebSocket
+const connectToRoom = async (code: string) => {
+  const wsUrl = 'wss://clevrsend-signaling-beta.onrender.com';
 
-// Remove saved connection
-const removeSavedConnection = (id: string) => {
-  const connections = loadSavedConnections();
-  const filtered = connections.filter(c => c.id !== id);
-  saveSavedConnections(filtered);
-  savedQRConnections.value = filtered;
-  showNotification('Verbindung entfernt', 'info');
-};
+  try {
+    roomWebSocket.value = new WebSocket(wsUrl);
 
-// Export connections as JSON file (Backup)
-const exportConnections = () => {
-  const connections = loadSavedConnections();
+    roomWebSocket.value.onopen = () => {
+      console.log(`🌐 Connected to room ${code}`);
 
-  if (connections.length === 0) {
-    showNotification('⚠️ Keine Verbindungen zum Exportieren', 'error');
-    return;
-  }
-
-  const json = JSON.stringify(connections, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `clevrsend-backup-${new Date().toISOString().split('T')[0]}.json`;
-  a.click();
-
-  URL.revokeObjectURL(url);
-  showNotification('✅ Backup heruntergeladen!', 'success');
-  logInteraction('EXPORT_CONNECTIONS', `Exported ${connections.length} connections`);
-};
-
-// Import connections from JSON file (Restore)
-const importConnections = () => {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json';
-
-  input.onchange = (e) => {
-    const file = (e.target as HTMLInputElement).files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const imported = JSON.parse(e.target?.result as string);
-
-        // Validate structure
-        if (!Array.isArray(imported)) {
-          throw new Error('Invalid backup file format');
+      // Register this device in the room
+      roomWebSocket.value?.send(JSON.stringify({
+        type: 'join-room',
+        roomCode: code,
+        device: {
+          id: crypto.randomUUID(),
+          name: deviceAlias.value || 'Unbenannt',
+          type: 'web',
+          lastSeen: Date.now()
         }
+      }));
+    };
 
-        // Merge with existing (avoid duplicates)
-        const existing = loadSavedConnections();
-        const existingData = new Set(existing.map(c => c.qrData));
-
-        const newConnections = imported.filter((c: SavedQRConnection) =>
-          !existingData.has(c.qrData)
-        );
-
-        const merged = [...existing, ...newConnections];
-        saveSavedConnections(merged);
-        savedQRConnections.value = merged;
-
-        showNotification(
-          `✅ ${newConnections.length} neue Verbindungen wiederhergestellt!`,
-          'success'
-        );
-        logInteraction('IMPORT_CONNECTIONS', `Imported ${newConnections.length} connections`);
+    roomWebSocket.value.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        handleRoomMessage(data);
       } catch (err) {
-        console.error('Import failed:', err);
-        showNotification('❌ Ungültige Backup-Datei', 'error');
+        console.error('Failed to parse room message:', err);
       }
     };
-    reader.readAsText(file);
-  };
 
-  input.click();
+    roomWebSocket.value.onerror = (error) => {
+      console.error('Room WebSocket error:', error);
+      showNotification('❌ Verbindung zum Raum fehlgeschlagen', 'error');
+    };
+
+    roomWebSocket.value.onclose = () => {
+      console.log('🔌 Room WebSocket closed');
+    };
+
+  } catch (err) {
+    console.error('Failed to connect to room:', err);
+    showNotification('❌ Fehler beim Verbinden', 'error');
+  }
+};
+
+// Handle room messages
+const handleRoomMessage = (data: any) => {
+  switch (data.type) {
+    case 'room-devices':
+      // Update devices list
+      if (myDevicesRoom.value) {
+        myDevicesRoom.value.devices = data.devices;
+        saveRoom(myDevicesRoom.value);
+      }
+      break;
+
+    case 'device-joined':
+      showNotification(`📱 ${data.device.name} ist beigetreten`, 'info');
+      break;
+
+    case 'device-left':
+      showNotification(`👋 ${data.device.name} hat den Raum verlassen`, 'info');
+      break;
+  }
+};
+
+// Leave room
+const leaveRoom = () => {
+  if (roomWebSocket.value) {
+    roomWebSocket.value.close();
+    roomWebSocket.value = null;
+  }
+
+  localStorage.removeItem('clevrsend_my_devices_room');
+  myDevicesRoom.value = null;
+
+  showNotification('👋 Raum verlassen', 'info');
+  logInteraction('LEAVE_ROOM', 'Left room');
+};
+
+// Copy room code to clipboard
+const copyRoomCode = async () => {
+  if (!myDevicesRoom.value) return;
+
+  try {
+    await navigator.clipboard.writeText(myDevicesRoom.value.code);
+    showNotification('📋 Raum-Code kopiert!', 'success');
+  } catch (err) {
+    showNotification('❌ Kopieren fehlgeschlagen', 'error');
+  }
+};
+
+// Send files to specific device in room
+const sendToDevice = (device: RoomDevice) => {
+  showNotification(`📤 Sende an ${device.name}...`, 'info');
+  // TODO: Implement P2P connection to device
 };
 
 // Format last seen time
@@ -1149,28 +1248,12 @@ const getDeviceIcon = (deviceType: string): string => {
     laptop: 'mdi:laptop',
     tablet: 'mdi:tablet',
     web: 'mdi:web',
+    ios: 'mdi:apple',
+    android: 'mdi:android',
+    macos: 'mdi:laptop-mac',
+    windows: 'mdi:microsoft-windows',
   };
   return icons[deviceType] || 'mdi:devices';
-};
-
-// Quick connect to saved connection
-const quickConnectToSaved = async (connection: SavedQRConnection) => {
-  try {
-    showNotification(`🔄 Verbinde mit ${connection.deviceName}...`, 'info');
-    logInteraction('QUICK_CONNECT', `Quick connect to ${connection.deviceName}`);
-
-    // Use the saved QR data to reconnect
-    await handleQrScanned(connection.qrData);
-
-    // Update last connected timestamp
-    connection.lastConnected = Date.now();
-    const connections = savedQRConnections.value;
-    saveSavedConnections(connections);
-
-  } catch (err) {
-    console.error('Quick connect failed:', err);
-    showNotification('❌ Verbindung fehlgeschlagen', 'error');
-  }
 };
 
 // QR Code modal state
@@ -2642,9 +2725,15 @@ onMounted(async () => {
     },
   });
 
-  // Load saved QR connections
-  savedQRConnections.value = loadSavedConnections();
-  console.log(`📋 Loaded ${savedQRConnections.value.length} saved QR connections`);
+  // Load My Devices Room from LocalStorage
+  myDevicesRoom.value = loadRoom();
+  if (myDevicesRoom.value) {
+    console.log(`🏠 Loaded room: ${myDevicesRoom.value.code}`);
+    // Reconnect to room
+    connectToRoom(myDevicesRoom.value.code);
+  } else {
+    console.log('ℹ️ No saved room found');
+  }
 });
 </script>
 
@@ -4584,81 +4673,10 @@ onMounted(async () => {
   }
 }
 
-/* ===== SAVED CONNECTIONS STYLES ===== */
+/* ===== MY DEVICES ROOM STYLES ===== */
 
-/* Save Connection Prompt */
-.save-connection-prompt {
-  margin: 1.5rem 0;
-  animation: slideInDown 0.4s ease-out;
-}
-
-.save-prompt-card {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(59, 130, 246, 0.15));
-  border: 1px solid rgba(139, 92, 246, 0.4);
-  border-radius: 1rem;
-  padding: 1.5rem;
-  text-align: center;
-  backdrop-filter: blur(10px);
-}
-
-.save-prompt-icon {
-  color: #8b5cf6;
-  margin-bottom: 0.75rem;
-}
-
-.save-prompt-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  color: rgba(255, 255, 255, 0.95);
-}
-
-.save-prompt-text {
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.7);
-  margin-bottom: 1rem;
-  line-height: 1.5;
-}
-
-.save-prompt-actions {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: center;
-}
-
-.save-prompt-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1.25rem;
-  border-radius: 0.5rem;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  cursor: pointer;
-  border: none;
-}
-
-.save-prompt-btn-primary {
-  background: linear-gradient(135deg, #8b5cf6, #3b82f6);
-  color: white;
-}
-
-.save-prompt-btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4);
-}
-
-.save-prompt-btn-secondary {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.save-prompt-btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-/* Saved Connections Section */
-.saved-connections-section {
+/* Room Container */
+.my-devices-room {
   margin: 1.5rem 0;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 1rem;
@@ -4666,16 +4684,11 @@ onMounted(async () => {
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.saved-connections-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.room-header {
   margin-bottom: 1rem;
-  flex-wrap: wrap;
-  gap: 0.75rem;
 }
 
-.saved-connections-title {
+.room-title {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -4684,175 +4697,16 @@ onMounted(async () => {
   color: rgba(255, 255, 255, 0.9);
 }
 
-.saved-connections-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.saved-action-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.5rem 0.875rem;
-  background: rgba(139, 92, 246, 0.2);
-  border: 1px solid rgba(139, 92, 246, 0.3);
-  border-radius: 0.5rem;
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.saved-action-btn:hover {
-  background: rgba(139, 92, 246, 0.3);
-  border-color: rgba(139, 92, 246, 0.5);
-  transform: translateY(-1px);
-}
-
-.saved-action-text {
-  display: none;
-}
-
-@media (min-width: 640px) {
-  .saved-action-text {
-    display: inline;
-  }
-}
-
-/* Saved Connections List */
-.saved-connections-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.saved-connection-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0.75rem;
-  transition: all 0.2s ease;
-}
-
-.saved-connection-card:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(139, 92, 246, 0.4);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.saved-connection-info {
-  display: flex;
-  align-items: center;
-  gap: 0.875rem;
-  flex: 1;
-  min-width: 0;
-}
-
-.saved-device-icon {
-  flex-shrink: 0;
-  color: #8b5cf6;
-}
-
-.saved-connection-details {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 0;
-}
-
-.saved-device-name {
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.95);
-  font-size: 0.95rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.saved-device-time {
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.saved-connection-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-
-.saved-connect-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.5rem 0.875rem;
-  background: linear-gradient(135deg, #8b5cf6, #3b82f6);
-  border: none;
-  border-radius: 0.5rem;
-  color: white;
-  font-weight: 500;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-
-.saved-connect-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4);
-}
-
-.saved-connect-btn span {
-  display: none;
-}
-
-@media (min-width: 640px) {
-  .saved-connect-btn span {
-    display: inline;
-  }
-}
-
-.saved-remove-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 0.5rem;
-  color: #ef4444;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-}
-
-.saved-remove-btn:hover {
-  background: rgba(239, 68, 68, 0.25);
-  border-color: rgba(239, 68, 68, 0.5);
-  transform: scale(1.05);
-}
-
-/* Saved Count Badge */
-.saved-count {
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.6);
-  font-weight: 400;
-}
-
 /* Empty State */
-.saved-connections-empty {
+.room-empty {
   text-align: center;
   padding: 2rem 1rem;
-  color: rgba(255, 255, 255, 0.5);
 }
 
 .empty-icon {
   opacity: 0.3;
   margin-bottom: 1rem;
+  color: #8b5cf6;
 }
 
 .empty-text {
@@ -4866,12 +4720,355 @@ onMounted(async () => {
   font-size: 0.875rem;
   color: rgba(255, 255, 255, 0.4);
   line-height: 1.5;
+  margin-bottom: 1.5rem;
 }
 
-@keyframes slideInDown {
+.room-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 300px;
+  margin: 0 auto;
+}
+
+.room-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: none;
+}
+
+.room-btn-primary {
+  background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+  color: white;
+}
+
+.room-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4);
+}
+
+.room-btn-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.room-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Active Room */
+.room-active {
+  animation: fadeIn 0.3s ease;
+}
+
+.room-code-section {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(59, 130, 246, 0.15));
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.room-code-label {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 0.5rem;
+}
+
+.room-code {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.code-text {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #8b5cf6;
+  letter-spacing: 0.1em;
+  font-family: 'Courier New', monospace;
+}
+
+.code-copy-btn {
+  padding: 0.5rem;
+  background: rgba(139, 92, 246, 0.2);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 0.375rem;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+}
+
+.code-copy-btn:hover {
+  background: rgba(139, 92, 246, 0.3);
+  transform: scale(1.05);
+}
+
+/* Devices Section */
+.room-devices-section {
+  margin-bottom: 1.5rem;
+}
+
+.devices-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.status-online {
+  color: #10b981;
+}
+
+.status-offline {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.devices-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.device-card {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.device-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(139, 92, 246, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.device-card.device-offline {
+  opacity: 0.5;
+}
+
+.device-icon {
+  flex-shrink: 0;
+  color: #8b5cf6;
+}
+
+.device-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.device-name {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-status {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.device-send-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.875rem;
+  background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+  border: none;
+  border-radius: 0.5rem;
+  color: white;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.device-send-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4);
+}
+
+.device-send-btn span {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .device-send-btn span {
+    display: inline;
+  }
+}
+
+/* Room Footer Actions */
+.room-footer-actions {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.room-leave-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  width: 100%;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 0.5rem;
+  color: #ef4444;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.room-leave-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+/* Join Room Dialog */
+.room-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.room-dialog {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 1rem;
+  padding: 2rem;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.3s ease;
+}
+
+.dialog-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.dialog-text {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.room-code-input {
+  width: 100%;
+  padding: 0.875rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.5rem;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 1.25rem;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: 0.1em;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+}
+
+.room-code-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.room-code-input:focus {
+  outline: none;
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.dialog-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: none;
+}
+
+.dialog-btn-primary {
+  background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+  color: white;
+}
+
+.dialog-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4);
+}
+
+.dialog-btn-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.dialog-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
