@@ -385,6 +385,80 @@
           </p>
         </div>
 
+        <!-- Save Connection Prompt -->
+        <div v-if="showSaveConnectionPrompt" class="save-connection-prompt">
+          <div class="save-prompt-card">
+            <Icon name="mdi:bookmark-plus-outline" size="40" class="save-prompt-icon" />
+            <h3 class="save-prompt-title">Verbindung speichern?</h3>
+            <p class="save-prompt-text">
+              Speichere diese Verbindung, um beim nächsten Mal sofort zu verbinden ohne QR-Code!
+            </p>
+            <div class="save-prompt-actions">
+              <button @click="saveCurrentQRConnection" class="save-prompt-btn save-prompt-btn-primary">
+                <Icon name="mdi:content-save" size="20" />
+                <span>Speichern</span>
+              </button>
+              <button @click="dismissSavePrompt" class="save-prompt-btn save-prompt-btn-secondary">
+                <Icon name="mdi:close" size="20" />
+                <span>Nicht jetzt</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Saved Connections -->
+        <div v-if="savedQRConnections.length > 0" class="saved-connections-section">
+          <div class="saved-connections-header">
+            <h3 class="saved-connections-title">
+              <Icon name="mdi:bookmark-multiple" size="24" />
+              Gespeicherte Verbindungen
+            </h3>
+            <div class="saved-connections-actions">
+              <button @click="exportConnections" class="saved-action-btn" title="Backup erstellen">
+                <Icon name="mdi:download" size="20" />
+                <span class="saved-action-text">Backup</span>
+              </button>
+              <button @click="importConnections" class="saved-action-btn" title="Backup wiederherstellen">
+                <Icon name="mdi:upload" size="20" />
+                <span class="saved-action-text">Importieren</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="saved-connections-list">
+            <div
+              v-for="conn in savedQRConnections"
+              :key="conn.id"
+              class="saved-connection-card"
+            >
+              <div class="saved-connection-info">
+                <Icon :name="getDeviceIcon(conn.deviceType)" size="28" class="saved-device-icon" />
+                <div class="saved-connection-details">
+                  <span class="saved-device-name">{{ conn.deviceName }}</span>
+                  <span class="saved-device-time">{{ formatLastSeen(conn.lastConnected) }}</span>
+                </div>
+              </div>
+              <div class="saved-connection-actions">
+                <button
+                  @click="quickConnectToSaved(conn)"
+                  class="saved-connect-btn"
+                  title="Schnellverbindung"
+                >
+                  <Icon name="mdi:flash" size="20" />
+                  <span>Verbinden</span>
+                </button>
+                <button
+                  @click="removeSavedConnection(conn.id)"
+                  class="saved-remove-btn"
+                  title="Entfernen"
+                >
+                  <Icon name="mdi:delete-outline" size="20" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Connection Status -->
         <div v-if="qrConnectionStatus" class="qr-connection-status">
           <div :class="['status-indicator', qrConnectionStatus.type]">
@@ -886,6 +960,207 @@ const releaseWakeLock = async () => {
     } catch (err) {
       console.warn('⚠️ Wake Lock release failed:', err);
     }
+  }
+};
+
+// ===== SAVED QR CONNECTIONS (LocalStorage + Export/Import) =====
+interface SavedQRConnection {
+  id: string;
+  deviceName: string;
+  deviceType: string;
+  lastConnected: number;
+  qrData: string;  // QR connection data for reconnection
+}
+
+const savedQRConnections = ref<SavedQRConnection[]>([]);
+const showSaveConnectionPrompt = ref(false);
+const currentQRConnectionData = ref<{ peerAlias: string; peerType: string; qrData: string } | null>(null);
+
+// Load saved connections from LocalStorage
+const loadSavedConnections = (): SavedQRConnection[] => {
+  try {
+    const saved = localStorage.getItem('clevrsend_saved_qr_connections');
+    return saved ? JSON.parse(saved) : [];
+  } catch (err) {
+    console.error('Failed to load saved connections:', err);
+    return [];
+  }
+};
+
+// Save connections to LocalStorage
+const saveSavedConnections = (connections: SavedQRConnection[]) => {
+  try {
+    localStorage.setItem('clevrsend_saved_qr_connections', JSON.stringify(connections));
+    console.log('✅ Saved connections to LocalStorage');
+  } catch (err) {
+    console.error('Failed to save connections:', err);
+    showNotification('❌ Fehler beim Speichern', 'error');
+  }
+};
+
+// Save current QR connection
+const saveCurrentQRConnection = () => {
+  if (!currentQRConnectionData.value) return;
+
+  const newConnection: SavedQRConnection = {
+    id: crypto.randomUUID(),
+    deviceName: currentQRConnectionData.value.peerAlias,
+    deviceType: currentQRConnectionData.value.peerType || 'web',
+    lastConnected: Date.now(),
+    qrData: currentQRConnectionData.value.qrData
+  };
+
+  const connections = loadSavedConnections();
+
+  // Check if already saved (avoid duplicates)
+  const exists = connections.some(c => c.qrData === newConnection.qrData);
+  if (exists) {
+    showNotification('ℹ️ Verbindung bereits gespeichert', 'info');
+    showSaveConnectionPrompt.value = false;
+    return;
+  }
+
+  connections.push(newConnection);
+  saveSavedConnections(connections);
+
+  savedQRConnections.value = connections;
+  showSaveConnectionPrompt.value = false;
+
+  showNotification('✅ Verbindung gespeichert!', 'success');
+  logInteraction('SAVE_CONNECTION', `Saved connection to ${newConnection.deviceName}`);
+};
+
+// Dismiss save prompt
+const dismissSavePrompt = () => {
+  showSaveConnectionPrompt.value = false;
+  currentQRConnectionData.value = null;
+};
+
+// Remove saved connection
+const removeSavedConnection = (id: string) => {
+  const connections = loadSavedConnections();
+  const filtered = connections.filter(c => c.id !== id);
+  saveSavedConnections(filtered);
+  savedQRConnections.value = filtered;
+  showNotification('Verbindung entfernt', 'info');
+};
+
+// Export connections as JSON file (Backup)
+const exportConnections = () => {
+  const connections = loadSavedConnections();
+
+  if (connections.length === 0) {
+    showNotification('⚠️ Keine Verbindungen zum Exportieren', 'error');
+    return;
+  }
+
+  const json = JSON.stringify(connections, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `clevrsend-backup-${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+
+  URL.revokeObjectURL(url);
+  showNotification('✅ Backup heruntergeladen!', 'success');
+  logInteraction('EXPORT_CONNECTIONS', `Exported ${connections.length} connections`);
+};
+
+// Import connections from JSON file (Restore)
+const importConnections = () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+
+  input.onchange = (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const imported = JSON.parse(e.target?.result as string);
+
+        // Validate structure
+        if (!Array.isArray(imported)) {
+          throw new Error('Invalid backup file format');
+        }
+
+        // Merge with existing (avoid duplicates)
+        const existing = loadSavedConnections();
+        const existingData = new Set(existing.map(c => c.qrData));
+
+        const newConnections = imported.filter((c: SavedQRConnection) =>
+          !existingData.has(c.qrData)
+        );
+
+        const merged = [...existing, ...newConnections];
+        saveSavedConnections(merged);
+        savedQRConnections.value = merged;
+
+        showNotification(
+          `✅ ${newConnections.length} neue Verbindungen wiederhergestellt!`,
+          'success'
+        );
+        logInteraction('IMPORT_CONNECTIONS', `Imported ${newConnections.length} connections`);
+      } catch (err) {
+        console.error('Import failed:', err);
+        showNotification('❌ Ungültige Backup-Datei', 'error');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  input.click();
+};
+
+// Format last seen time
+const formatLastSeen = (timestamp: number): string => {
+  const now = Date.now();
+  const diff = now - timestamp;
+
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (minutes < 1) return 'Gerade eben';
+  if (minutes < 60) return `Vor ${minutes} Min.`;
+  if (hours < 24) return `Vor ${hours} Std.`;
+  if (days === 1) return 'Gestern';
+  return `Vor ${days} Tagen`;
+};
+
+// Get device icon based on type
+const getDeviceIcon = (deviceType: string): string => {
+  const icons: Record<string, string> = {
+    mobile: 'mdi:cellphone',
+    desktop: 'mdi:desktop-tower',
+    laptop: 'mdi:laptop',
+    tablet: 'mdi:tablet',
+    web: 'mdi:web',
+  };
+  return icons[deviceType] || 'mdi:devices';
+};
+
+// Quick connect to saved connection
+const quickConnectToSaved = async (connection: SavedQRConnection) => {
+  try {
+    showNotification(`🔄 Verbinde mit ${connection.deviceName}...`, 'info');
+    logInteraction('QUICK_CONNECT', `Quick connect to ${connection.deviceName}`);
+
+    // Use the saved QR data to reconnect
+    await handleQrScanned(connection.qrData);
+
+    // Update last connected timestamp
+    connection.lastConnected = Date.now();
+    const connections = savedQRConnections.value;
+    saveSavedConnections(connections);
+
+  } catch (err) {
+    console.error('Quick connect failed:', err);
+    showNotification('❌ Verbindung fehlgeschlagen', 'error');
   }
 };
 
@@ -2152,6 +2427,16 @@ const handleQrScanned = async (qrData: string) => {
           // Scroll to top to show "Dateien senden" button
           window.scrollTo({ top: 0, behavior: 'smooth' });
 
+          // Store connection data for potential saving
+          currentQRConnectionData.value = {
+            peerAlias,
+            peerType: 'web',
+            qrData
+          };
+
+          // Show save connection prompt
+          showSaveConnectionPrompt.value = true;
+
           // Setup file receiver
           setupQRFileReceiver(dataChannel);
 
@@ -2250,9 +2535,9 @@ onMounted(async () => {
   webCryptoSupported.value = isWebCryptoSupported();
   logApp(`WebCrypto supported: ${webCryptoSupported.value}`);
 
-  // Fetch backend version from signaling server
+  // Fetch backend version from signaling server (BETA)
   try {
-    const response = await fetch('https://clevrsend-signaling.onrender.com/health');
+    const response = await fetch('https://clevrsend-signaling-beta.onrender.com/health');
     const data = await response.json();
     if (data.version) {
       backendVersion.value = data.version;
@@ -2347,6 +2632,10 @@ onMounted(async () => {
       return await showCustomPinDialog(t("index.enterPin"));
     },
   });
+
+  // Load saved QR connections
+  savedQRConnections.value = loadSavedConnections();
+  console.log(`📋 Loaded ${savedQRConnections.value.length} saved QR connections`);
 });
 </script>
 
@@ -4283,6 +4572,269 @@ onMounted(async () => {
 
   .legal-separator {
     display: none;
+  }
+}
+
+/* ===== SAVED CONNECTIONS STYLES ===== */
+
+/* Save Connection Prompt */
+.save-connection-prompt {
+  margin: 1.5rem 0;
+  animation: slideInDown 0.4s ease-out;
+}
+
+.save-prompt-card {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(59, 130, 246, 0.15));
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  text-align: center;
+  backdrop-filter: blur(10px);
+}
+
+.save-prompt-icon {
+  color: #8b5cf6;
+  margin-bottom: 0.75rem;
+}
+
+.save-prompt-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.save-prompt-text {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.save-prompt-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.save-prompt-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: none;
+}
+
+.save-prompt-btn-primary {
+  background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+  color: white;
+}
+
+.save-prompt-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4);
+}
+
+.save-prompt-btn-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.save-prompt-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Saved Connections Section */
+.saved-connections-section {
+  margin: 1.5rem 0;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.saved-connections-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.saved-connections-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.saved-connections-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.saved-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.875rem;
+  background: rgba(139, 92, 246, 0.2);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 0.5rem;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.saved-action-btn:hover {
+  background: rgba(139, 92, 246, 0.3);
+  border-color: rgba(139, 92, 246, 0.5);
+  transform: translateY(-1px);
+}
+
+.saved-action-text {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .saved-action-text {
+    display: inline;
+  }
+}
+
+/* Saved Connections List */
+.saved-connections-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.saved-connection-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.saved-connection-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(139, 92, 246, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.saved-connection-info {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.saved-device-icon {
+  flex-shrink: 0;
+  color: #8b5cf6;
+}
+
+.saved-connection-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.saved-device-name {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-device-time {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.saved-connection-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.saved-connect-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.875rem;
+  background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+  border: none;
+  border-radius: 0.5rem;
+  color: white;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.saved-connect-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4);
+}
+
+.saved-connect-btn span {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .saved-connect-btn span {
+    display: inline;
+  }
+}
+
+.saved-remove-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 0.5rem;
+  color: #ef4444;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.saved-remove-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.5);
+  transform: scale(1.05);
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>

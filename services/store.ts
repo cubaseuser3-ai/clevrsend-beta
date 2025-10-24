@@ -370,7 +370,7 @@ export async function setupQRSignaling(): Promise<SignalingConnection> {
     throw new Error("Store not initialized - call setupConnection first");
   }
 
-  const qrSignalingUrl = "wss://clevrsend-signaling.onrender.com";
+  const qrSignalingUrl = "wss://clevrsend-signaling-beta.onrender.com";
   const maxRetries = 3;
   let lastError: Error;
 

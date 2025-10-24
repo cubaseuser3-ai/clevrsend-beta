@@ -69,7 +69,7 @@ export default defineNuxtConfig({
           'X-Content-Type-Options': 'nosniff',
           'Referrer-Policy': 'strict-origin-when-cross-origin',
           'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
-          'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss://clevrsend-signaling.onrender.com https://clevrsend-signaling.onrender.com wss://clevrsend-signaling.mytechsupport.deno.net https://clevrsend-signaling.mytechsupport.deno.net wss://public.localsend.org https://public.localsend.org https://api.iconify.design; frame-ancestors 'none';",
+          'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss://clevrsend-signaling-beta.onrender.com https://clevrsend-signaling-beta.onrender.com wss://clevrsend-signaling.onrender.com https://clevrsend-signaling.onrender.com wss://clevrsend-signaling.mytechsupport.deno.net https://clevrsend-signaling.mytechsupport.deno.net wss://public.localsend.org https://public.localsend.org https://api.iconify.design; frame-ancestors 'none';",
         },
       },
     },
