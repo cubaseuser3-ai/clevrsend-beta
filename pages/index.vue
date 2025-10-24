@@ -407,11 +407,12 @@
         </div>
 
         <!-- Saved Connections -->
-        <div v-if="savedQRConnections.length > 0" class="saved-connections-section">
+        <div class="saved-connections-section">
           <div class="saved-connections-header">
             <h3 class="saved-connections-title">
               <Icon name="mdi:bookmark-multiple" size="24" />
               Gespeicherte Verbindungen
+              <span v-if="savedQRConnections.length > 0" class="saved-count">({{ savedQRConnections.length }})</span>
             </h3>
             <div class="saved-connections-actions">
               <button @click="exportConnections" class="saved-action-btn" title="Backup erstellen">
@@ -425,7 +426,15 @@
             </div>
           </div>
 
-          <div class="saved-connections-list">
+          <!-- Empty State -->
+          <div v-if="savedQRConnections.length === 0" class="saved-connections-empty">
+            <Icon name="mdi:bookmark-outline" size="48" class="empty-icon" />
+            <p class="empty-text">Keine gespeicherten Verbindungen</p>
+            <p class="empty-hint">Verbinde dich via QR-Code, um Geräte zu speichern</p>
+          </div>
+
+          <!-- Connections List -->
+          <div v-else class="saved-connections-list">
             <div
               v-for="conn in savedQRConnections"
               :key="conn.id"
@@ -4825,6 +4834,38 @@ onMounted(async () => {
   background: rgba(239, 68, 68, 0.25);
   border-color: rgba(239, 68, 68, 0.5);
   transform: scale(1.05);
+}
+
+/* Saved Count Badge */
+.saved-count {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 400;
+}
+
+/* Empty State */
+.saved-connections-empty {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.empty-icon {
+  opacity: 0.3;
+  margin-bottom: 1rem;
+}
+
+.empty-text {
+  font-size: 1rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 0.5rem;
+}
+
+.empty-hint {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.4);
+  line-height: 1.5;
 }
 
 @keyframes slideInDown {
